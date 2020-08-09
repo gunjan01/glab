@@ -9,7 +9,6 @@ import (
 	"text/tabwriter"
 
 	"github.com/logrusorgru/aurora"
-	"github.com/xanzy/go-gitlab"
 )
 
 func displayAllIssues(m []*gitlab.Issue) {
@@ -43,6 +42,75 @@ func displayIssue(hm *gitlab.Issue) {
 	} else {
 		fmt.Println(aurora.Red(fmt.Sprint("#", hm.IID)), hm.Title, aurora.Magenta(duration))
 	}
+}
+
+func renameIssue(cmdArgs map[string]string, _ map[int]string) {
+	l := &gitlab.UpdateIssueOptions{}
+	reader := bufio.NewReader(os.Stdin)
+
+	var (
+		issueID          int
+		issueTitle       string
+		issueLabel       string
+		issueDescription string
+	)
+
+	if CommandArgExists(cmdArgs, "ID") {
+		issueID = cmdArgs["ID"]
+	}
+
+	if CommandArgExists(cmdArgs, "title") {
+		issueTitle = strings.Trim(cmdArgs["title"], " ")
+		issueTitle = strings.ReplaceAll(issueTitle, "\n", "")
+	}
+
+	if CommandArgExists(cmdArgs, "label") {
+		issueLabel = strings.Trim(cmdArgs["label", "[] ")
+	}
+
+	if CommandArgExists(cmdArgs, "description") {
+		issueDescription = strings.Trim(cmdArgs["description"], " ")
+	}
+
+	fmt.Print(aurora.Cyan("Due Date"))
+	fmt.Print(aurora.Yellow("(Format: YYYY-MM-DD)" + "\n" + "-> "))
+
+	l.Title = gitlab.String(issueTitle)
+	l.Labels = &gitlab.Labels{issueLabel}
+	l.Description = &issueDescription
+	l.DueDate = &gitlab.ISOTime{}
+
+	if CommandArgExists(cmdArgs, "confidential") {
+		l.Confidential = gitlab.Bool(true)
+	}
+
+	if CommandArgExists(cmdArgs, "weight") {
+		l.Weight = gitlab.Int(stringToInt(cmdArgs["weight"]))
+	}
+
+	if CommandArgExists(cmdArgs, "milestone") {
+		l.MilestoneID = gitlab.Int(stringToInt(cmdArgs["milestone"]))
+	}
+
+	if CommandArgExists(cmdArgs, "assigns") {
+		assignID := cmdArgs["assigns"]
+		arrIds := strings.Split(strings.Trim(assignID, "[] "), ",")
+		var t2 []int
+
+		for _, i := range arrIds {
+			j := stringToInt(i)
+			t2 = append(t2, j)
+		}
+		l.AssigneeIDs = t2
+	}
+
+	gitlabClient, repo := InitGitlabClient()
+	issue, _, err := git.Issues.UpdateIssueOptions(issueID, repo, l)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	displayIssue(issue)
 }
 
 func createIssue(cmdArgs map[string]string, _ map[int]string) {
@@ -274,6 +342,7 @@ func ExecIssue(cmdArgs map[string]string, arrCmd map[int]string) {
 		"list":        listIssues,
 		"ls":          listIssues,
 		"delete":      deleteIssue,
+		"rename":      renameIssue,
 		"subscribe":   subscribeIssue,
 		"unsubscribe": unsubscribeIssue,
 		"open":        changeIssueState,
